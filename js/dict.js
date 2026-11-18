@@ -74,12 +74,13 @@ export async function lookup(text) {
   return results.slice(0, MAX_RESULTS);
 }
 
-// Headword to show: the written form that matched, or the first one.
+// Headword to show: the kanji form that matched, else the first kanji form, else kana.
 export function headword(r) {
-  const hit = r.kanji.find(k => k === r.base) || r.kana.find(k => k === r.base);
-  return hit || r.kanji[0] || r.kana[0];
+  const hit = r.kanji.find(k => k === r.base);
+  return hit || r.kanji[0] || r.kana.find(k => k === r.base) || r.kana[0];
 }
 export function reading(r) {
   const h = headword(r);
-  return r.kana.includes(h) ? '' : r.kana[0];
+  if (r.kana.includes(h)) return '';
+  return r.kana.includes(r.base) ? r.base : r.kana[0];
 }

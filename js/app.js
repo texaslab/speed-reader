@@ -137,10 +137,22 @@ async function importFile(file) {
   return importParsed(parsed);
 }
 
-async function importSample(name) {
-  const r = await fetch(SAMPLES[name]);
+async function fetchSample(name) {
+  try {
+    const r = await fetch(SAMPLES[name]);
+    if (r.ok && !/text\/html/.test(r.headers.get('content-type') || '')) return await r.arrayBuffer();
+  } catch {}
+  // Hosts that won't serve .epub get a base64 copy (see tools/make_artifact.py)
+  const r = await fetch(SAMPLES[name].replace(/\.epub$/, '.b64.txt'));
   if (!r.ok) throw new Error('Sample could not be loaded');
-  const parsed = await parseEpub(await r.arrayBuffer());
+  const bin = atob((await r.text()).trim());
+  const bytes = new Uint8Array(bin.length);
+  for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+  return bytes.buffer;
+}
+
+async function importSample(name) {
+  const parsed = await parseEpub(await fetchSample(name));
   return importParsed(parsed, { sample: name });
 }
 
@@ -275,7 +287,10 @@ function renderContext() {
   const { paras, paraStart, off, para } = cur.text;
   const i = cur.player.i;
   const p = para[i];
-  const from = Math.max(0, p - 2), to = Math.min(paras.length - 1, p + 2);
+  // two paragraphs before, then enough after to fill the box
+  const from = Math.max(0, p - 2);
+  let to = p, chars = 0;
+  while (to < paras.length - 1 && (to - p < 2 || chars < 500) && to - p < 8) { to++; chars += paras[to].length; }
   const frag = document.createDocumentFragment();
   let curSpan = null;
   for (let q = from; q <= to; q++) {
@@ -565,8 +580,10 @@ async function refreshWordCount() {
   return words;
 }
 
+let savedWords = [];
 async function renderWords() {
   const words = await refreshWordCount();
+  savedWords = words;
   const list = $('#words-list');
   list.textContent = '';
   for (const w of words) {
@@ -600,8 +617,9 @@ $('#open-words').addEventListener('click', async () => {
   showSheet('#sheet-words');
 });
 
+// Safari only allows clipboard and share inside the tap itself, so use the list already loaded.
 $('#words-copy').addEventListener('click', async () => {
-  const words = await db.allWords();
+  const words = savedWords;
   const tsv = wordsTsv(words);
   try {
     await navigator.clipboard.writeText(tsv);
@@ -618,8 +636,7 @@ $('#words-copy').addEventListener('click', async () => {
 });
 
 $('#words-share').addEventListener('click', async () => {
-  const words = await db.allWords();
-  const file = new File([wordsTsv(words)], 'speed-reader-words.txt', { type: 'text/plain' });
+  const file = new File([wordsTsv(savedWords)], 'speed-reader-words.txt', { type: 'text/plain' });
   try { await navigator.share({ files: [file], title: 'Saved words' }); } catch {}
 });
 
