@@ -11,8 +11,16 @@ export function setDictBase(url) { base = url; }
 
 function shardOf(ch) { return ch.codePointAt(0) % SHARDS; }
 
+const KEEP = 8; // parsed shards kept in memory; the browser cache holds the rest
+
 function loadShard(n) {
+  if (cache.has(n)) {
+    const p = cache.get(n);
+    cache.delete(n); cache.set(n, p); // most recently used last
+    return p;
+  }
   if (!cache.has(n)) {
+    while (cache.size >= KEEP) cache.delete(cache.keys().next().value);
     const p = fetch(`${base}${String(n).padStart(2, '0')}.json`)
       .then(r => { if (!r.ok) throw new Error(`dictionary file ${n}: ${r.status}`); return r.json(); })
       .catch(e => { cache.delete(n); throw e; });
