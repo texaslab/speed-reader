@@ -1,1 +1,158 @@
-<!doctype html><meta charset="utf-8"><title>Speed Reader</title><p>Coming soon.</p>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Speed Reader</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0E0F12">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Speed Reader">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="currentColor"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" fill="currentColor"/></symbol>
+  <symbol id="i-prev" viewBox="0 0 24 24"><path d="M11 6l-6 6 6 6M19 6l-6 6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-next" viewBox="0 0 24 24"><path d="M13 6l6 6-6 6M5 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-list" viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-aa" viewBox="0 0 24 24"><path d="M3 18l4.5-12L12 18M4.6 14h5.8M14 18l3-8 3 8M15 15.5h4" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-minus" viewBox="0 0 24 24"><path d="M5 12h14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+  <symbol id="i-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3L5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+  <symbol id="i-star" viewBox="0 0 24 24"><path d="M12 4l2.5 5.2 5.6.7-4.1 3.9 1 5.6L12 16.7 7 19.4l1-5.6-4.1-3.9 5.6-.7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  <symbol id="i-more" viewBox="0 0 24 24"><circle cx="5" cy="12" r="1.7" fill="currentColor"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/><circle cx="19" cy="12" r="1.7" fill="currentColor"/></symbol>
+</svg>
+
+<!-- Library -->
+<main id="library" class="view">
+  <header class="lib-head">
+    <h1 class="brand"><span class="brand-mark" aria-hidden="true"></span>Speed Reader</h1>
+    <div class="lib-tools">
+      <button id="open-words" class="icon-btn" aria-label="Saved words"><svg><use href="#i-star"/></svg><span id="words-count" class="count" hidden></span></button>
+      <button id="open-settings-lib" class="icon-btn" aria-label="Settings"><svg><use href="#i-gear"/></svg></button>
+    </div>
+  </header>
+  <div class="add-row">
+    <label class="btn primary" for="file-input"><svg><use href="#i-plus"/></svg>Add epub</label>
+    <input id="file-input" type="file" accept=".epub,application/epub+zip" multiple hidden>
+    <button id="open-paste" class="btn">Paste text</button>
+  </div>
+  <ul id="books" class="books"></ul>
+  <div id="lib-empty" class="lib-empty" hidden>
+    <p class="empty-title">No books yet</p>
+    <div class="sample-row">
+      <button class="btn" data-sample="sherlock-holmes">The Adventures of Sherlock Holmes</button>
+      <button class="btn" data-sample="kumo-no-ito" lang="ja">蜘蛛の糸</button>
+    </div>
+  </div>
+</main>
+
+<!-- Reader -->
+<section id="reader" class="view" hidden>
+  <header class="rd-head">
+    <button id="rd-back" class="icon-btn" aria-label="Library"><svg><use href="#i-back"/></svg></button>
+    <div class="rd-title"><div id="rd-chapter" class="rd-chapter"></div><div id="rd-book" class="rd-book"></div></div>
+    <button id="rd-toc" class="icon-btn" aria-label="Chapters"><svg><use href="#i-list"/></svg></button>
+    <button id="rd-settings" class="icon-btn" aria-label="Reading settings"><svg><use href="#i-aa"/></svg></button>
+  </header>
+
+  <div id="stage" class="stage" role="button" tabindex="0" aria-label="Play or pause">
+    <div class="reticle top"></div>
+    <div id="word" class="word" aria-live="off"><span class="l"></span><span class="p"></span><span class="r"></span></div>
+    <div class="reticle bottom"></div>
+    <div id="stage-hint" class="stage-hint">Tap to read</div>
+  </div>
+
+  <div id="context" class="context" hidden></div>
+
+  <footer class="rd-foot">
+    <div class="progress-row">
+      <input id="scrub" class="scrub" type="range" min="0" max="1000" value="0" aria-label="Position in book">
+      <div class="progress-meta"><span id="pct"></span><span id="left"></span></div>
+    </div>
+    <div class="controls">
+      <button id="speed-down" class="icon-btn" aria-label="Slower"><svg><use href="#i-minus"/></svg></button>
+      <button id="prev" class="icon-btn" aria-label="Back one sentence"><svg><use href="#i-prev"/></svg></button>
+      <button id="play" class="play-btn" aria-label="Play"><svg><use href="#i-play"/></svg></button>
+      <button id="next" class="icon-btn" aria-label="Forward one sentence"><svg><use href="#i-next"/></svg></button>
+      <button id="speed-up" class="icon-btn" aria-label="Faster"><svg><use href="#i-plus"/></svg></button>
+    </div>
+    <div class="speed"><span id="speed-val" class="speed-val"></span><span id="speed-unit" class="speed-unit"></span></div>
+  </footer>
+</section>
+
+<!-- Sheets -->
+<div id="scrim" class="scrim" hidden></div>
+
+<section id="sheet-toc" class="sheet" hidden aria-label="Chapters">
+  <header class="sheet-head"><h2>Chapters</h2><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button></header>
+  <ol id="toc-list" class="toc-list"></ol>
+</section>
+
+<section id="sheet-settings" class="sheet" hidden aria-label="Settings">
+  <header class="sheet-head"><h2>Settings</h2><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button></header>
+  <div class="set-list">
+    <label class="set-row"><span>Word size</span><input id="set-size" type="range" min="28" max="72" step="2"></label>
+    <label class="set-row"><span>Smart pacing</span><input id="set-smart" type="checkbox" class="switch"></label>
+    <label class="set-row"><span>Ease in after a pause</span><input id="set-ramp" type="checkbox" class="switch"></label>
+    <label class="set-row"><span>Show text when paused</span><input id="set-context" type="checkbox" class="switch"></label>
+    <div class="set-row"><span>Theme</span>
+      <div class="seg" role="radiogroup" aria-label="Theme">
+        <button data-theme-opt="system" role="radio">Auto</button><button data-theme-opt="dark" role="radio">Dark</button><button data-theme-opt="light" role="radio">Light</button>
+      </div>
+    </div>
+  </div>
+  <p class="credits">Japanese dictionary: <a href="https://www.edrdg.org/wiki/index.php/JMdict-EDICT_Dictionary_Project" target="_blank" rel="noopener">JMdict</a> by the Electronic Dictionary Research and Development Group, CC BY-SA 4.0. Samples: Standard Ebooks (public domain), Aozora Bunko. <span id="app-version"></span></p>
+</section>
+
+<section id="sheet-lookup" class="sheet" hidden aria-label="Word">
+  <header class="sheet-head"><h2 id="lk-head"></h2><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button></header>
+  <div id="lk-body" class="lk-body"></div>
+  <div class="sheet-actions">
+    <button id="lk-save" class="btn"><svg><use href="#i-star"/></svg>Save word</button>
+    <button id="lk-jump" class="btn primary">Read from here</button>
+  </div>
+</section>
+
+<section id="sheet-words" class="sheet tall" hidden aria-label="Saved words">
+  <header class="sheet-head"><h2>Saved words</h2><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button></header>
+  <ul id="words-list" class="words-list"></ul>
+  <p id="words-empty" class="muted-line" hidden>Words you save while reading show up here.</p>
+  <div class="sheet-actions">
+    <button id="words-copy" class="btn primary">Copy for Anki</button>
+    <button id="words-share" class="btn" hidden>Share file</button>
+  </div>
+</section>
+
+<section id="sheet-paste" class="sheet tall" hidden aria-label="Paste text">
+  <header class="sheet-head"><h2>Paste text</h2><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button></header>
+  <form id="paste-form" class="paste-form">
+    <input id="paste-title" type="text" placeholder="Title" autocomplete="off">
+    <textarea id="paste-text" placeholder="Paste an article or chapter"></textarea>
+    <button class="btn primary" type="submit">Add to library</button>
+  </form>
+</section>
+
+<section id="sheet-book" class="sheet" hidden aria-label="Book">
+  <header class="sheet-head"><h2 id="bk-title"></h2><button class="icon-btn" data-close aria-label="Close"><svg><use href="#i-close"/></svg></button></header>
+  <div class="sheet-actions">
+    <button id="bk-restart" class="btn">Start over</button>
+    <button id="bk-delete" class="btn danger">Delete</button>
+  </div>
+</section>
+
+<div id="toast" class="toast" role="status" hidden></div>
+
+<script src="vendor/jszip.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
