@@ -1,10 +1,10 @@
 import { parseEpub, parsePlainText, EpubError } from './epub.js';
-import { tokenizeBook, pivotIndex, isSentenceEnd } from './tokenize.js';
+import { tokenizeBook, retokenize, TOKENIZER_VERSION, pivotIndex, isSentenceEnd } from './tokenize.js';
 import { Player } from './player.js';
 import * as db from './store.js';
 import { lookup, headword, reading } from './dict.js';
 
-export const APP_VERSION = '0.1.0 beta';
+export const APP_VERSION = '0.1.1 beta';
 const SAMPLES = {
   'sherlock-holmes': 'samples/sherlock-holmes.epub',
   'kumo-no-ito': 'samples/kumo-no-ito.epub',
@@ -347,8 +347,17 @@ async function savePosition() {
 }
 
 async function openBook(id) {
-  const [book, text] = await Promise.all([db.getBook(id), db.getText(id)]);
-  if (!book || !text) { toast('This book could not be loaded'); refreshLibrary(); return; }
+  const [book, stored] = await Promise.all([db.getBook(id), db.getText(id)]);
+  if (!book || !stored) { toast('This book could not be loaded'); refreshLibrary(); return; }
+  let text = stored;
+  if (book.lang === 'ja' && stored.v !== TOKENIZER_VERSION) {
+    // split with the current word rules, keeping the reading spot
+    const r = retokenize(stored, book.lang, book.pos || 0);
+    text = { id, ...r.text };
+    book.pos = r.pos;
+    book.count = text.words.length;
+    try { await db.putText(text); await db.putBook(book); } catch (e) { console.warn(e); }
+  }
   const player = new Player({ text, lang: book.lang, settings, onWord, onState });
   cur = { book, text, player, chapter: -1 };
   $('#library').hidden = true;

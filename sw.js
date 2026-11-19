@@ -1,6 +1,6 @@
 // Offline support: the app files are cached on install; dictionary files and
 // samples are cached the first time they are used.
-const VERSION = 'sr-v1';
+const VERSION = 'sr-v2';
 const SHELL = [
   './', 'index.html', 'css/app.css', 'manifest.webmanifest',
   'js/app.js', 'js/epub.js', 'js/tokenize.js', 'js/player.js', 'js/store.js', 'js/dict.js', 'js/deinflect.js',

@@ -2,7 +2,7 @@
 // English: words (very long words are split). Japanese: short phrase chunks built
 // from Intl.Segmenter words, with particles and endings glued to the word before.
 
-export const TOKENIZER_VERSION = 1;
+export const TOKENIZER_VERSION = 2;
 
 const KANJI = /[㐀-鿿豈-﫿々〆ヶ]/;
 const KATA = /[゠-ヿｦ-ﾟ]/;
@@ -11,9 +11,12 @@ const OPEN = /^[「『（(［\[｛{〈《【〔“‘"'＜]+$/;
 const CLOSE_OR_PUNCT = /^[」』）)］\]｝}〉》】〕”’"'＞。、，．！？!?,.・…‥：；:;ー〜～\-—―]+$/;
 const STOP = /[。！？!?…]$/;
 const COMMA = /[、，,]$/;
-const AUX = new Set(['ている', 'ていた', 'ました', 'ません', 'でした', 'ます', 'ない', 'なかった', 'ください', 'ござい',
-  'ある', 'いる', 'おり', 'ます', 'れる', 'られる', 'せる', 'させる', 'たい', 'だろう', 'でしょう', 'です', 'だった', 'のです', 'んです']);
-const JA_MAX = 9;
+// two-plus-kana pieces that never stand alone: particles, endings, conjugation parts
+const END = new Set(['って', 'った', 'って', 'ない', 'なく', 'なかっ', 'ます', 'まし', 'ませ', 'ません', 'ました', 'でし', 'した', 'して',
+  'てい', 'ている', 'ていた', 'いる', 'いた', 'れる', 'られ', 'られる', 'せる', 'させ', 'たい', 'たら', 'れば', 'だっ', 'です',
+  'から', 'まで', 'より', 'には', 'では', 'とは', 'への', 'ので', 'のに', 'でも', 'など', 'そう', 'しょう', 'ましょう', 'でしょう', 'だろう']);
+const JA_MAX = 5;  // a word and its particle
+const TAIL_MAX = 10; // a verb or adjective keeps all its endings (いらっしゃいました)
 
 function enTokens(text) {
   const out = [];
@@ -59,7 +62,7 @@ function jaSegments(text) {
   if (!segmenter && typeof Intl !== 'undefined' && Intl.Segmenter) {
     segmenter = new Intl.Segmenter('ja', { granularity: 'word' });
   }
-  if (segmenter) return Array.from(segmenter.segment(text), s => [s.segment, s.index]);
+  if (segmenter) return keepWhole(Array.from(segmenter.segment(text), s => [s.segment, s.index]), text);
   // Fallback: split into script runs
   const out = [];
   const re = /[㐀-鿿豈-﫿々〆ヶ]+[぀-ゟ]*|[゠-ヿー]+|[぀-ゟ]+|[A-Za-z0-9]+|\s+|./gu;
@@ -68,32 +71,67 @@ function jaSegments(text) {
   return out;
 }
 
+// Words the segmenter cuts into odd pieces (ご|ざ|いま|しょう) are put back together,
+// so ございます shows as its own word instead of trailing the one before.
+const WHOLE = /ござ(?:い(?:ま(?:す|した|せん|しょう)?)?|る)/g;
+function keepWhole(segs, text) {
+  const spans = [];
+  for (const m of text.matchAll(WHOLE)) spans.push([m.index, m.index + m[0].length]);
+  if (!spans.length) return segs;
+  const out = [];
+  let k = 0;
+  for (const [seg, idx] of segs) {
+    while (k < spans.length && spans[k][1] <= idx) k++;
+    const sp = spans[k];
+    if (sp && idx < sp[1] && idx + seg.length > sp[0]) {
+      // segment overlaps a whole-word span: split off any part before it, fold the rest into it
+      if (idx < sp[0]) out.push([seg.slice(0, sp[0] - idx), idx]);
+      const prev = out[out.length - 1];
+      if (prev && prev[1] === sp[0] && prev.whole) {
+        prev[0] = text.slice(sp[0], Math.max(sp[1], idx + seg.length));
+      } else {
+        const w = [text.slice(sp[0], Math.max(sp[1], idx + seg.length)), sp[0]];
+        w.whole = true;
+        out.push(w);
+      }
+      continue;
+    }
+    out.push([seg, idx]);
+  }
+  return out;
+}
+
+// One word per unit: a segmenter word plus the bits that cannot stand alone
+// (a one-kana particle or ending, conjugation pieces, punctuation), kept short.
 function jaTokens(text) {
   const out = [];
-  let cur = null; // [text, offset]
-  const push = () => { if (cur) out.push(cur); cur = null; };
+  let cur = null; // [text, offset, letters]
+  const push = () => { if (cur) out.push([cur[0], cur[1]]); cur = null; };
+  const add = (seg, idx, letters) => { cur[0] = text.slice(cur[1], idx + seg.length); cur[2] += letters; };
   for (const [seg, idx] of jaSegments(text)) {
     if (!seg.trim()) { continue; }
-    if (!cur) { cur = [seg, idx]; continue; }
+    const n = Array.from(seg).length;
+    if (!cur) { cur = [seg, idx, CLOSE_OR_PUNCT.test(seg) || OPEN.test(seg) ? 0 : n]; continue; }
     const t = cur[0];
     const lastCh = t[t.length - 1];
     const ended = STOP.test(t) || COMMA.test(t) || /[」』）)］】〕”]$/.test(t);
-    if (CLOSE_OR_PUNCT.test(seg)) { cur[0] = text.slice(cur[1], idx + seg.length); continue; }
-    if (OPEN.test(t)) { cur[0] = text.slice(cur[1], idx + seg.length); continue; }
-    if (OPEN.test(seg)) { push(); cur = [seg, idx]; continue; }
-    if (ended) { push(); cur = [seg, idx]; continue; }
-    const len = t.length + seg.length;
-    if (HIRA_ONLY.test(seg) && len <= JA_MAX &&
-        (seg.length <= 2 || KANJI.test(lastCh) || AUX.has(seg) || (HIRA_ONLY.test(t) && t.length <= 2))) {
-      cur[0] = text.slice(cur[1], idx + seg.length);
+    if (CLOSE_OR_PUNCT.test(seg)) { add(seg, idx, 0); continue; }
+    if (OPEN.test(t)) { add(seg, idx, n); continue; }
+    if (OPEN.test(seg)) { push(); cur = [seg, idx, 0]; continue; }
+    if (ended) { push(); cur = [seg, idx, n]; continue; }
+    const len = cur[2] + n;
+    const tail = (n === 1 || END.has(seg)) && /[ぁ-ゖ]$/.test(t);
+    if (HIRA_ONLY.test(seg) && len <= (tail ? TAIL_MAX : JA_MAX) &&
+        (n === 1 || END.has(seg) || (HIRA_ONLY.test(t) && cur[2] === 1))) {
+      add(seg, idx, n);
       continue;
     }
-    // honorific prefix お/ご glued to the next word
-    if ((t === 'お' || t === 'ご' || t === '御') && !HIRA_ONLY.test(seg)) { cur[0] = text.slice(cur[1], idx + seg.length); continue; }
+    // honorific prefix お/ご/御 glued to the next word
+    if ((t === 'お' || t === 'ご' || t === '御') && !HIRA_ONLY.test(seg)) { add(seg, idx, n); continue; }
     // a lone kanji right after a kanji word is usually part of it (釈迦+様, 日本+人)
-    if (seg.length === 1 && KANJI.test(seg) && KANJI.test(lastCh) && len <= 5) { cur[0] = text.slice(cur[1], idx + seg.length); continue; }
+    if (n === 1 && KANJI.test(seg) && KANJI.test(lastCh) && len <= JA_MAX) { add(seg, idx, n); continue; }
     push();
-    cur = [seg, idx];
+    cur = [seg, idx, n];
   }
   push();
   return out;
@@ -126,6 +164,29 @@ export function tokenizeBook(book) {
     paraStart: Int32Array.from(paraStart),
     v: TOKENIZER_VERSION,
   };
+}
+
+// A book stored by an older tokenizer, split again with the current rules.
+// Returns the new text and the reading position moved to the same spot.
+export function retokenize(text, lang, pos) {
+  const chapters = text.chapters.map((c, i) => {
+    const end = i + 1 < text.chapters.length ? text.chapters[i + 1].start : text.words.length;
+    const paras = [];
+    for (let p = 0; p < text.paras.length; p++) {
+      if (text.paraStart[p] >= c.start && text.paraStart[p] < end) paras.push(text.paras[p]);
+    }
+    return c.body ? { title: c.title, paras, body: true } : { title: c.title, paras };
+  });
+  const next = tokenizeBook({ lang, chapters });
+  let at = 0;
+  if (pos > 0 && pos < text.words.length) {
+    const p = text.para[pos], off = text.off[pos];
+    if (p < next.paras.length) {
+      at = next.paraStart[p];
+      while (at + 1 < next.words.length && next.para[at + 1] === p && next.off[at + 1] <= off) at++;
+    }
+  }
+  return { text: next, pos: at };
 }
 
 // Index of the letter shown in red.
